@@ -1,11 +1,21 @@
 import pygame
 import random
 import sys
+import struct
 
 # ---------------------------------------------------------
 # 초기 설정
 # ---------------------------------------------------------
 pygame.init()
+
+# 오디오(배경음악) 초기화. 오디오 장치가 없는 환경(headless 등)에서도
+# 게임 자체는 계속 동작하도록 예외를 잡아둔다.
+SAMPLE_RATE = 44100
+try:
+    pygame.mixer.init(frequency=SAMPLE_RATE, size=-16, channels=2)
+    AUDIO_AVAILABLE = True
+except pygame.error:
+    AUDIO_AVAILABLE = False
 
 # 보드 크기
 COLS, ROWS = 10, 20
@@ -124,6 +134,46 @@ def clear_lines(board):
 def new_piece():
     kind = random.choice(list(SHAPES.keys()))
     return Piece(kind)
+
+
+# ---------------------------------------------------------
+# 배경음악 (외부 파일 없이 코드로 짧은 8비트풍 멜로디를 합성)
+# ---------------------------------------------------------
+def _make_tone_bytes(freq, duration, volume=0.25):
+    """지정한 주파수의 사각파(칩튠 느낌) 톤을 16비트 스테레오 PCM 바이트로 생성.
+    freq가 0이면 쉼표(무음)를 생성한다."""
+    n_samples = int(SAMPLE_RATE * duration)
+    buf = bytearray()
+
+    if freq <= 0:
+        buf += b"\x00\x00\x00\x00" * n_samples
+        return bytes(buf)
+
+    period = SAMPLE_RATE / freq
+    amp = int(volume * 32767)
+    for i in range(n_samples):
+        phase = (i % period) / period
+        s = amp if phase < 0.5 else -amp
+        buf += struct.pack("<hh", s, s)
+    return bytes(buf)
+
+
+def generate_bgm():
+    """짧은 오리지널 8비트풍 배경음악 루프를 생성해서 pygame.mixer.Sound로 반환한다."""
+    # (주파수 Hz, 길이 초) 쌍의 목록. 0Hz는 쉼표.
+    melody = [
+        (523, 0.2), (659, 0.2), (784, 0.2), (659, 0.2),
+        (523, 0.2), (659, 0.2), (784, 0.2), (988, 0.2),
+        (880, 0.2), (784, 0.2), (659, 0.2), (523, 0.2),
+        (440, 0.2), (523, 0.2), (659, 0.2), (0, 0.2),
+    ]
+    data = bytearray()
+    for freq, dur in melody:
+        data += _make_tone_bytes(freq, dur)
+
+    sound = pygame.mixer.Sound(buffer=bytes(data))
+    sound.set_volume(0.3)
+    return sound
 
 
 # ---------------------------------------------------------
@@ -279,6 +329,17 @@ def main():
 
     game_over = False
 
+    # 배경음악 준비 및 재생 (오디오 장치가 없으면 조용히 건너뜀)
+    bgm_sound = None
+    bgm_channel = None
+    if AUDIO_AVAILABLE:
+        try:
+            bgm_sound = generate_bgm()
+            bgm_channel = bgm_sound.play(loops=-1)
+        except pygame.error:
+            bgm_sound = None
+            bgm_channel = None
+
     running = True
     while running:
         dt = clock.tick(60)
@@ -300,6 +361,8 @@ def main():
                     fall_speed = compute_fall_speed(level)
                     fall_time = 0
                     game_over = False
+                    if bgm_sound is not None:
+                        bgm_channel = bgm_sound.play(loops=-1)
                     continue
 
                 if game_over:
@@ -357,6 +420,8 @@ def main():
 
                     if not valid_position(board, current.cells()):
                         game_over = True
+                        if bgm_channel is not None:
+                            bgm_channel.stop()
 
         if not game_over:
             # 자동 낙하
@@ -380,6 +445,8 @@ def main():
 
                     if not valid_position(board, current.cells()):
                         game_over = True
+                        if bgm_channel is not None:
+                            bgm_channel.stop()
 
         # ---------------- 그리기 ----------------
         draw_board(board)
