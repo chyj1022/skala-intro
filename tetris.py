@@ -163,6 +163,27 @@ def draw_ghost(board, piece):
             pygame.draw.rect(screen, (90, 90, 90), rect, 2)
 
 
+def draw_score_topright(score):
+    """화면(보드) 오른쪽 상단에 획득한 점수를 반투명 박스로 보여준다."""
+    box_margin = 10
+    box_w, box_h = 130, 60
+    box_x = BOARD_W - box_w - box_margin
+
+    # 반투명 배경 박스
+    overlay = pygame.Surface((box_w, box_h), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 160))
+    screen.blit(overlay, (box_x, box_margin))
+    pygame.draw.rect(screen, WHITE, (box_x, box_margin, box_w, box_h), 2)
+
+    # 라벨
+    label = font.render("점수", True, WHITE)
+    screen.blit(label, (box_x + 10, box_margin + 6))
+
+    # 점수 값
+    score_text = font.render(f"{score}", True, WHITE)
+    screen.blit(score_text, (box_x + 10, box_margin + 32))
+
+
 def draw_next_preview_topleft(next_piece):
     """화면(보드) 왼쪽 상단에 다음 블록을 반투명 박스로 미리 보여준다."""
     box_margin = 10
@@ -199,11 +220,8 @@ def draw_next_preview_topleft(next_piece):
 def draw_side_panel(score, level, game_over):
     x0 = BOARD_W + 20
 
-    score_text = font.render(f"점수: {score}", True, WHITE)
-    screen.blit(score_text, (x0, 20))
-
     level_text = font.render(f"레벨: {level}", True, WHITE)
-    screen.blit(level_text, (x0, 55))
+    screen.blit(level_text, (x0, 20))
 
     help_lines = [
         "조작법",
@@ -369,6 +387,7 @@ def main():
             draw_ghost(board, current)
             draw_piece(current)
         draw_next_preview_topleft(next_piece)
+        draw_score_topright(score)
         draw_side_panel(score, level, game_over)
 
         pygame.display.flip()
